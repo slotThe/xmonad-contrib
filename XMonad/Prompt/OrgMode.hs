@@ -532,13 +532,22 @@ pPriority = option NoPriority $
 -- | Try to parse a 'Time'.
 pTimeOfDay :: Parser (Maybe TimeOfDay)
 pTimeOfDay = option Nothing $
-  skipSpaces *> choice
-    [ Just <$> (TimeOfDay <$> pHour <* ":" <*> pMinute) -- HH:MM
-    , Just <$> (TimeOfDay <$> pHour        <*> pure 0 ) -- HH
+  skipSpaces >> Just <$> choice
+    [ TimeOfDay <$> pHour <* ":" <*> pMinute -- HH:MM
+    , pHHMM                                  -- HHMM
+    , TimeOfDay <$> pHour        <*> pure 0  -- HH
     ]
  where
-  pMinute :: Parser Int = pNumBetween 0 59
+  pHHMM :: Parser TimeOfDay
+  pHHMM = do
+    let getTwo = count 2 (satisfy isDigit)
+    hh <- read <$> getTwo
+    guard (hh >= 0 && hh <= 23)
+    mm <- read <$> getTwo
+    guard (mm >= 0 && mm <= 59)
+    pure $ TimeOfDay hh mm
   pHour   :: Parser Int = pNumBetween 0 23
+  pMinute :: Parser Int = pNumBetween 0 59
 
 -- | Parse a 'Date'.
 pDate :: Parser Date
