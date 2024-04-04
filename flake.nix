@@ -12,6 +12,10 @@
     hoverlay = final: prev: hself: hsuper: {
       xmonad-contrib = hself.callCabal2nix "xmonad-contrib"
         (git-ignore-nix.lib.gitignoreSource ./.) { };
+      xmonad-extras = hself.callCabal2nix "xmonad-extras" (builtins.fetchGit {
+        url = "https://github.com/xmonad/xmonad-extras";
+        rev = "14e1c4ce9759b959c05b03aac1bb718abc50f762";
+      }) { };
     };
     defComp = if builtins.pathExists ./comp.nix
       then import ./comp.nix
