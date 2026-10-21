@@ -70,6 +70,8 @@ library
                    utf8-string,
                    deepseq
     default-language: Haskell2010
+    c-sources: cbits/compose.c
+    other-modules: XMonad.Prompt.Compose
 
     cpp-options:   -DXMONAD_CONTRIB_VERSION_MAJOR=0
                    -DXMONAD_CONTRIB_VERSION_MINOR=18
@@ -462,6 +464,7 @@ test-suite tests
                   XMonad.Layout.WindowArranger
                   XMonad.Prelude
                   XMonad.Prompt
+                  XMonad.Prompt.Compose
                   XMonad.Prompt.OrgMode
                   XMonad.Prompt.Shell
                   XMonad.Util.Dmenu
@@ -488,6 +491,7 @@ test-suite tests
                   XMonad.Util.XUtils
                   XPrompt
   hs-source-dirs: tests, .
+  c-sources: cbits/compose.c
   build-depends: base >= 4.12 && < 5
                , QuickCheck >= 2
                , X11 >= 1.10 && < 1.11
