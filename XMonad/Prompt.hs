@@ -102,6 +102,7 @@ module XMonad.Prompt
 import           XMonad                       hiding (cleanMask, config)
 import           XMonad.Prelude               hiding (toList, fromList)
 import qualified XMonad.StackSet              as W
+import           XMonad.Prompt.Compose        (InputContext, filterEvent, lookupInput, withInputContext)
 import           XMonad.Util.Font
 import           XMonad.Util.Types
 import           XMonad.Util.XSelection       (getSelection)
@@ -161,6 +162,7 @@ data XPState =
         , eventBuffer           :: [(KeySym, String, Event)]
         , inputBuffer           :: String
         , currentCompletions    :: Maybe [String]
+        , inputContext          :: Maybe InputContext
         }
 
 data XPConfig =
@@ -393,6 +395,7 @@ initState d rw w s opMode gc fonts h c cm width =
         , eventBuffer           = []
         , inputBuffer           = ""
         , currentCompletions    = Nothing
+        , inputContext          = Nothing
         }
 
 -- Returns the current XPType
@@ -569,16 +572,17 @@ mkXPromptImplementation historyKey conf om = do
     bracket
       (createPromptWin d rw conf s width)
       (destroyWindow d)
-      (\w ->
+      (\w -> withInputContext d w $ \ic ->
         bracket
           (createGC d w)
           (freeGC d)
           (\gc -> do
-            selectInput d w $ exposureMask .|. keyPressMask
+            selectInput d w $ exposureMask .|. keyPressMask .|. keyReleaseMask
             setGraphicsExposures d gc False
             let hs = fromMaybe [] $ M.lookup historyKey hist
                 st = initState d rw w s om gc fs hs conf cleanMask width
-            runXP st))
+            res <- runXP st{ inputContext = ic }
+            return res{ inputContext = Nothing }))
   releaseXMF fs
   when (successful st') $ do
     let prune = take (historySize conf)
@@ -643,15 +647,22 @@ eventLoop handle stopAction = do
     (keysym,keystr,event) <- case b of
         []  -> do
                 d <- gets dpy
-                io $ allocaXEvent $ \e -> do
+                w <- gets win
+                ic <- gets inputContext
+                io $ allocaXEvent $ \e -> fix $ \next -> do
                     -- Also capture @buttonPressMask@, see Note [Allow ButtonEvents]
-                    maskEvent d (exposureMask .|. keyPressMask .|. buttonPressMask) e
-                    ev <- getEvent e
-                    if ev_event_type ev == keyPress
-                        then do (_, s) <- lookupString $ asKeyEvent e
-                                ks <- keycodeToKeysym d (ev_keycode ev) 0
-                                return (ks, s, ev)
-                        else return (noSymbol, "", ev)
+                    maskEvent d (exposureMask .|. keyPressMask .|. keyReleaseMask .|. buttonPressMask) e
+                    fe <- maybe (pure False) (const $ filterEvent e w) ic
+                    if fe then next else do
+                        ev <- getEvent e
+                        if ev_event_type ev == keyPress
+                            then do s <- maybe (snd <$> lookupString (asKeyEvent e))
+                                               (\ctx -> lookupInput ctx $ asKeyEvent e) ic
+                                    ks <- if ev_keycode ev == 0
+                                              then pure noSymbol
+                                              else keycodeToKeysym d (ev_keycode ev) 0
+                                    return (ks, s, ev)
+                            else return (noSymbol, "", ev)
         (l : ls) -> do
                 modify $ \s -> s { eventBuffer = ls }
                 return l
